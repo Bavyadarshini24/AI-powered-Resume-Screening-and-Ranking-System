@@ -1,0 +1,69 @@
+import os
+import PyPDF2
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+class ResumeScreeningModel:
+    def __init__(self):
+        self.vectorizer = TfidfVectorizer()
+        self.job_description = None
+        self.candidate_resumes = []
+        self.candidate_names = []  # List to store candidate names
+
+    def set_job_description(self, job_desc):
+        self.job_description = job_desc
+
+    def add_candidate_resume(self, name, resume):
+        self.candidate_names.append(name)  # Store candidate name
+        self.candidate_resumes.append(resume)
+
+    def rank_candidates(self):
+        job_vector = self.vectorizer.fit_transform([self.job_description])
+        resume_vectors = self.vectorizer.transform(self.candidate_resumes)
+        similarities = cosine_similarity(job_vector, resume_vectors).flatten()
+        ranked_indices = similarities.argsort()[::-1]
+        return ranked_indices, similarities[ranked_indices]
+
+def extract_text_from_pdf(pdf_path):
+    text = ''
+    with open(pdf_path, 'rb') as file:
+        reader = PyPDF2.PdfReader(file)
+        for page in reader.pages:
+            text += page.extract_text() + '\n'
+    return text
+
+def main():
+    model = ResumeScreeningModel()
+
+    # Input job description
+    job_description = input("Enter the job description:\n")
+    model.set_job_description(job_description)
+
+    # Input directory containing resumes
+    resumes_directory = input("Enter the directory path containing resumes (PDF files):\n")
+
+    # Check if the provided path is a directory
+    if not os.path.isdir(resumes_directory):
+        print("Error: The provided path is not a valid directory.")
+        return
+
+    # Read resumes from the specified directory
+    for filename in os.listdir(resumes_directory):
+        if filename.endswith('.pdf'):
+            pdf_path = os.path.join(resumes_directory, filename)
+            resume_text = extract_text_from_pdf(pdf_path)
+            candidate_name = os.path.splitext(filename)[0]  # Use the filename (without extension) as the candidate name
+            model.add_candidate_resume(candidate_name, resume_text)
+
+    # Rank candidates
+    ranked_indices, scores = model.rank_candidates()
+
+    # Display results
+    print("\nRanked Candidates:")
+    for index, score in zip(ranked_indices, scores):
+        print(f"{model.candidate_names[index]}: Score {score:.4f}")
+
+if __name__ == '__main__':
+    main()
+
+
